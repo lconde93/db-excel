@@ -18,5 +18,8 @@ module.exports = {
             database: 'fintradesa',
             port: 3306
         }
+    },
+    export: {
+        path: 'C:/Users/e-bitware/Documents/excelPrueba'
     }
 }
