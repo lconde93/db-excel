@@ -20,8 +20,10 @@ module.exports = {
         }
     },
     export: {
-        sourcePath: 'C:/Users/e-bitware/Documents/Node/db-excel/export',
-        path: 'C:/Users/e-bitware/Documents/excelPrueba',
-        timestamps: true
+        /* sourcePath: 'C:/Users/e-bitware/Documents/Node/db-excel/export',
+        path: 'C:/Users/e-bitware/Documents/excelPrueba', */
+        sourcePath: 'C:/Users/AV90197/Documents/node-projects/db-excel/export',
+        path: 'C:/Users/AV90197/Documents/excelTest',
+        timestamps: false
     }
 }

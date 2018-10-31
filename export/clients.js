@@ -1,6 +1,8 @@
 module.exports = {
-    fileName: 'user',
-    rawQuery: 'select acr_identificador, acr_nombre, acr_paterno, acr_materno, acr_telefono, acr_celular, acr_correo, acr_calle, acr_exterior, acr_interior, acr_colonia, acr_cp from acreditado;',
+    fileName: 'Clientes',
+    rawQuery: `select acr_identificador, acr_nombre, acr_paterno, acr_materno, acr_telefono, 
+        acr_celular, acr_correo, acr_calle, acr_exterior, acr_interior, acr_colonia, acr_cp 
+        from acreditado;`,
     transform: function(rows) {
         let users = [];
         let count = 0;
@@ -13,64 +15,65 @@ module.exports = {
                 if (item.acr_interior == 's/n' || item.acr_interior == 'S/N' || item.acr_interior == '--' || item.acr_interior == 'SN')
                     item.acr_interior = '';
                 
-                item.noContrato = 'C00' + ++count;
+                /* item.noContrato = 'C00' + ++count; */
 
                 users.push(item);
             }
         }
+        
         return users;
     },
     fields: [{
         sourceName: 'acr_identificador',
-        targetName: 'identificador',
+        targetName: 'Id',
         defaultValue: ''
     }, {
         sourceName: 'acr_nombre',
-        targetName: 'nombre',
+        targetName: 'Nombre',
         defaultValue: ''
     }, {
         sourceName: 'acr_paterno',
-        targetName: 'apellido_paterno',
+        targetName: 'Apellido Paterno',
         defaultValue: ''
     }, {
         sourceName: 'acr_materno',
-        targetName: 'apellido_materno',
+        targetName: 'Apellido Materno',
         defaultValue: ''
     }, {
         sourceName: 'acr_telefono',
-        targetName: 'telefono_local',
+        targetName: 'Teléfono local',
         defaultValue: ''
     }, {
         sourceName: 'acr_celular',
-        targetName: 'celular',
+        targetName: 'Celular',
         defaultValue: ''
     }, {
         sourceName: 'acr_correo',
-        targetName: 'correo',
+        targetName: 'Correo',
         defaultValue: ''
     }, {
         sourceName: 'acr_calle',
-        targetName: 'calle',
+        targetName: 'Calle',
         defaultValue: ''
     }, {
         sourceName: 'acr_exterior',
-        targetName: 'no_exterior',
+        targetName: 'No. exterior',
         defaultValue: ''
     }, {
         sourceName: 'acr_interior',
-        targetName: 'no_interior',
+        targetName: 'No. interior',
         defaultValue: ''
     }, {
         sourceName: 'acr_colonia',
-        targetName: 'colonia',
+        targetName: 'Colonia',
         defaultValue: ''
     }, {
         sourceName: 'acr_cp',
-        targetName: 'cp',
+        targetName: 'Codigo Postal',
         defaultValue: ''
-    }, {
+    }, /* {
         sourceName: 'noContrato',
-        targetName: 'no_contrato',
+        targetName: 'No',
         defaultValue: ''
-    }]
+    } */]
 }
