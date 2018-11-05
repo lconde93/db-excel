@@ -10,16 +10,7 @@ module.exports = {
 		let list = rows.slice();
 		let count = 0;
 
-		for (let item of rows) {
-			/* let findType = linesList.findIndex(x => x.source === item.par_tipo);
-
-			if (findType > -1) {
-				item.par_tipo = linesList[findType].name;
-				item.id_linea = linesList[findType].id;
-			}
-
-			item.par_activo = item.par_activo === '0' ? 'Inactivo' : 'Activo'; */
-		}
+		for (let item of list) { }
 
 		return list;
 	},

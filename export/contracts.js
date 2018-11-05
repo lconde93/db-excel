@@ -34,7 +34,7 @@ module.exports = {
 		let list = rows.slice();
 		let count = 0;
 
-		for (let item of rows) {
+		for (let item of list) {
 			let findType = linesList.findIndex(x => x.source === item.con_tipo);
 
 			if (findType > -1) {
