@@ -1,5 +1,5 @@
-const dbExport = require('./lib/methods/export')(exportOptions);
+const dbExport = require('./lib/methods');
 
-module.exports = {
-    export: dbExport.export
+module.exports = function (options) {
+    return dbExport(options);
 }
