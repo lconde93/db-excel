@@ -1,10 +1,12 @@
 const exportOptions = require('./values');
-const dbExport = require('./lib/methods/export')(exportOptions);
+const excelExport = require('./index')(exportOptions);
 
 const main = async function () {
     try {
-        /* await dbExport.export(); */
-        await dbExport.import();
+
+        /* await excelExport.export(); */
+        await excelExport.import();
+
     } catch (err) {
         console.error('main.js 19', err);
     }
