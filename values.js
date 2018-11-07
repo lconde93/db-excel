@@ -15,7 +15,7 @@ module.exports = {
             host: '192.168.100.2',
             user: 'root',
             password: 'Bitware2016',
-            database: 'fintra_produccion',
+            database: 'fintra_carga_inicial',
             port: 3306
         }
     },
