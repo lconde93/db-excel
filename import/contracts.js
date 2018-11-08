@@ -4,7 +4,7 @@ module.exports = {
 	fields: [],
 	data: {
 		clients: async function (db) {
-			const rows = await db.query(`SELECT Usuario_ID AS id, LOWER(CONCAT(Nombre, ' ', Apellido_Paterno, ' ', Apellido_Materno)) AS name,
+			const rows = await db.target.query(`SELECT Usuario_ID AS id, LOWER(CONCAT(Nombre, ' ', Apellido_Paterno, ' ', Apellido_Materno)) AS name,
 				email, tel, tel_local
 				FROM seg_usuarios 
 				WHERE Usuario_App = 1`);
@@ -12,7 +12,7 @@ module.exports = {
 			return rows;
 		},
 		requestTypes: async function (db) {
-			const rows = await db.query(`SELECT * FROM cat_tipo_solicitudes`);
+			const rows = await db.target.query(`SELECT * FROM cat_tipo_solicitudes`);
 
 			return rows;
 		}
