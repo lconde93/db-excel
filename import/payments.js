@@ -3,16 +3,11 @@ module.exports = {
 	disabled: true,
 	fields: [],
 	data: {
-		clients: async function (db) {
-			const rows = await db.query(`SELECT Usuario_ID AS id, LOWER(CONCAT(Nombre, ' ', Apellido_Paterno, ' ', Apellido_Materno)) AS name,
-				email, tel, tel_local
-				FROM seg_usuarios 
-				WHERE Usuario_App = 1`);
-
-			return rows;
-		},
-		requestTypes: async function (db) {
-			const rows = await db.query(`SELECT * FROM cat_tipo_solicitudes`);
+		contracts: async function (db) {
+			const rows = await db.query(`SELECT C.Contrato_ID AS id, CONCAT(L.Prefijo, C.No_Contrato), CC.Usuario_ID AS clienteId
+				FROM cat_contratos C
+				INNER JOIN cat_cotizaciones CC ON CC.Cotizacion_ID = C.Contrato_ID 
+			`);
 
 			return rows;
 		}
