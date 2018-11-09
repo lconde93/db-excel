@@ -1,8 +1,34 @@
+const linesList = [{
+	id: 1,
+	name: 'Plataformas electrónicas',
+	source: 'con_uber'
+}, {
+	id: 2,
+	name: 'Colectivos',
+	source: 'con_colectivo'
+}, {
+	id: 3,
+	name: 'Taxis',
+	source: 'con_taxi'
+}, {
+	id: 4,
+	name: 'Persona Física',
+	source: 'con_persona'
+}, {
+	id: 5,
+	name: 'Persona Moral',
+	source: 'con_moral'
+}, {
+	id: 6,
+	name: 'Utilitarios',
+	source: 'con_utilitario'
+}]
+
 module.exports = {
 	fileName: 'Pagos',
 	rawQuery: `SELECT par_identificador, CCON.con_identificador AS con_identificador, CCON.con_cliente AS con_cliente, par_fecha, par_monto, 
 		par_referencia, par_fecha_pago, par_penas, par_monto_pagado, par_remanente, par_observaciones, par_especial, par_extra, par_extra_activo, 
-		par_monto_extra, par_monto_pena
+		par_monto_extra, par_monto_pena, CCON.con_tipo
 			FROM parcialidades PA 
 			INNER JOIN contrato CCON 
 		WHERE PA.con_identificador = CCON.con_identificador;`,
@@ -10,7 +36,14 @@ module.exports = {
 		let list = rows.slice();
 		let count = 0;
 
-		for (let item of list) { }
+		for (let item of list) { 
+			let findType = linesList.findIndex(x => x.source === item.con_tipo);
+
+			if (findType > -1) {
+				item.con_tipo = linesList[findType].name;
+				item.id_linea = linesList[findType].id;
+			}
+		}
 
 		return list;
 	},
@@ -21,6 +54,14 @@ module.exports = {
 	}, {
 		sourceName: 'con_identificador',
 		targetName: 'Contrato (ID)',
+		defaultValue: ''
+	}, {
+		sourceName: 'con_tipo',
+		targetName: 'Linea de Negocio',
+		defaultValue: ''
+	}, {
+		sourceName: 'id_linea',
+		targetName: 'Linea (ID)',
 		defaultValue: ''
 	}, {
 		sourceName: 'no_contrato',
