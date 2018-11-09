@@ -1,6 +1,6 @@
 module.exports = {
 	fileName: '2018-11-01-Contratos.xlsx',
-	disabled: true,
+	disabled: false,
 	fields: [],
 	data: {
 		clients: async function (db) {
@@ -151,6 +151,7 @@ module.exports = {
 			const insertContract = await db.insert({
 				table: 'cat_contratos',
 				fields: {
+					Contrato_ID: row['Id'],
 					No_Contrato: fillNumber(row['No. Contrato']),
 					Descripcion: '',
 					Cotizacion_ID: args.quotationId,

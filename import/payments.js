@@ -33,13 +33,7 @@ module.exports = {
 		}
 
 		try {
-			const sourceContract = db.data.sourceContracts.find(x => x.id == currentContract);
-
-			if (!sourceContract) return;
-
-			const contract = db.data.contracts.find(x => x.cliente.trim() == sourceContract.cliente.trim() && x.producto.trim() == sourceContract.producto.trim())
-
-			if (!contract) return;
+			const contract = db.data.contracts.find(x => x.id == currentContract);
 
 			return { contract: contract };
 		} catch (err) {
