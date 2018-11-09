@@ -55,34 +55,40 @@ module.exports = {
 			}
 
 			let total = (parseFloat(row['Monto']) + parseFloat(row['Multas']) + parseFloat(row['Extras']));
-
+			let paymentId;
 			payedAmount = acumMonto + parseFloat(row['Monto pagado']);
 			if (payedAmount > total) {
 				acumMonto = payedAmount - total;
 				payedAmount = total;
 			}
+			const payment = await db.query(`SELECT Pago_ID FROM cat_pagos WHERE Fecha_Pago = '${db.dateFormatter(row['Fecha'], 'YYYY-MM-DD HH:mm:ss')}' AND Contrato_ID = ${args.contract.id} AND Orden = ${order};`);
+			/* console.log('-+-+-+-+-' + JSON.stringify(payment)); */
+			if (payment && payment.length == 1)
+				paymentId = payment[0].Pago_ID;
+			else {
+				const paymentInsert = await db.insert({
+					table: 'cat_pagos',
+					fields: {
+						Contrato_ID: args.contract.id,
+						Fecha_Pago: db.dateFormatter(row['Fecha'], 'YYYY-MM-DD HH:mm:ss'),
+						Pago: row['Monto'],
+						Total: total,
+						Monto: payedAmount,
+						Orden: order,
+						Estado: '0',
+						Metodo: '0',
+						Tarjeta_ID: null,
+						Refinanciamiento: 0,
+						Fecha_Creacion: db.dateFormatter(args.contract.fecha, 'YYYY-MM-DD HH:mm:ss'),
+						Fecha_Actualizacion: db.dateFormatter(row['Fecha Pago'], 'YYYY-MM-DD HH:mm:ss'),
+						Visible: 1,
+						Activo: 1
+					}
+				});
+				paymentId = paymentInsert.id;
+			}
 
-			const paymentInsert = await db.insert({
-				table: 'cat_pagos',
-				fields: {
-					Contrato_ID: args.contract.id,
-					Fecha_Pago: db.dateFormatter(row['Fecha'], 'YYYY-MM-DD HH:mm:ss'),
-					Pago: row['Monto'],
-					Total: total,
-					Monto: payedAmount,
-					Orden: order,
-					Estado: '0',
-					Metodo: '0',
-					Tarjeta_ID: null,
-					Refinanciamiento: 0,
-					Fecha_Creacion: db.dateFormatter(args.contract.fecha, 'YYYY-MM-DD HH:mm:ss'),
-					Fecha_Actualizacion: db.dateFormatter(row['Fecha Pago'], 'YYYY-MM-DD HH:mm:ss'),
-					Visible: 1,
-					Activo: 1
-				}
-			});
-
-			return { paymentId: paymentInsert.id, contract: args.contract };
+			return { paymentId: paymentId, contract: args.contract };
 		} catch (err) {
 			console.error('STEP 2:', err);
 			process.exit(0);
