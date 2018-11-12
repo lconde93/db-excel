@@ -1,6 +1,6 @@
 module.exports = {
 	fileName: '2018-11-06-Clientes.xlsx',
-	disabled: true,
+	/* disabled: true, */
 	fields: [/* {
 		sourceName: 'Id',
 		targetName: 'identif'
@@ -57,9 +57,9 @@ module.exports = {
 				fields: {
 					Nombre_Usuario: 'usuario' + (index + 1),
 					Contrasena: '',
-					Nombre: row.Nombre,
-					Apellido_Paterno: row['Apellido Paterno'],
-					Apellido_Materno: row['Apellido Materno'],
+					Nombre: row.Nombre.trim().toUpperCase(),
+					Apellido_Paterno: row['Apellido Paterno'].trim().toUpperCase(),
+					Apellido_Materno: row['Apellido Materno'].trim().toUpperCase(),
 					Tel: row['Celular'],
 					Url_Imagen: '',
 					Tel_Local: row['Teléfono local'],
@@ -106,7 +106,7 @@ const transformEmail = function (mail, index) {
 		return 'contacto' + (index + 1) + '@fintra.com.mx';
 	}
 
-	return mail;
+	return mail.toLowerCase();
 }
 
 const fillNumber = function (index) {

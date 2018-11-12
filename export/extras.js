@@ -1,17 +1,21 @@
 module.exports = {
 	fileName: 'Extras',
     rawQuery: `
-        SELECT con.con_cliente, fin.fin_concepto ,fin.fin_total, fin.fin_inicial, fin.fin_financiado, fin.fin_financiamiento, fin.fin_pagos, fin.fin_pagomonto FROM financiamiento fin
-	        INNER JOIN(SELECT con_identificador, con_cliente FROM contrato) con ON con.con_identificador = fin.con_identificador;`,
+		SELECT con.con_identificador, con.con_cliente, fin.fin_concepto ,fin.fin_total, fin.fin_inicial, fin.fin_financiado, fin.fin_financiamiento, fin.fin_pagos, fin.fin_pagomonto 
+		FROM financiamiento fin
+	        INNER JOIN(
+				SELECT con_identificador, con_cliente FROM contrato
+			) con ON con.con_identificador = fin.con_identificador;`,
 	transform: function (rows) {
 		let list = rows.slice();
-		let count = 0;
-
-		for (let item of list) { }
 
 		return list;
 	},
 	fields: [{
+		sourceName: 'con_identificador',
+		targetName: 'Contrato (ID)',
+		defaultValue: ''
+	}, {
 		sourceName: 'con_cliente',
 		targetName: 'Cliente',
 		defaultValue: ''

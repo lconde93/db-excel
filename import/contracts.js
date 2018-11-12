@@ -1,10 +1,10 @@
 module.exports = {
 	fileName: '2018-11-01-Contratos.xlsx',
-	disabled: false,
+	/* disabled: true, */
 	fields: [],
 	data: {
 		clients: async function (db) {
-			const rows = await db.target.query(`SELECT Usuario_ID AS id, LOWER(CONCAT(Nombre, ' ', Apellido_Paterno, ' ', Apellido_Materno)) AS name,
+			const rows = await db.target.query(`SELECT Usuario_ID AS id, UPPER(CONCAT(Nombre, ' ', Apellido_Paterno, ' ', Apellido_Materno)) AS name,
 				email, tel, tel_local
 				FROM seg_usuarios 
 				WHERE Usuario_App = 1`);
@@ -19,18 +19,45 @@ module.exports = {
 	},
 	steps: [async function (db, row, index) {
 		try {
+			const agencyName = row.Agencia.trim();
+			const existAgency = await db.query(`SELECT Agencia_Id AS id FROM cat_agencia WHERE Nombre = UPPER('${agencyName}')`);
+
+			if (!existAgency.length) {
+				const insertAgency = await db.insert({
+					table: 'cat_agencias',
+					fields: {
+						Nombre: row.Agencia.trim().toUpperCase(),
+						Descripcion: '',
+						Fecha_Creacion: db.dateFormatter(new Date(), 'YYYY-MM-DD HH:mm:ss'),
+						Fecha_Actualizacion: db.dateFormatter(new Date(), 'YYYY-MM-DD HH:mm:ss'),
+						Visible: 1,
+						Activo: 1,
+						Usuario_Creacion_ID: '1',
+						Usuario_Actualizacion_ID: '1',
+					}
+				});
+				return { agencyId: insertAgency.id };
+			}
+
+			return { agencyId: existAgency[0].id }
+		} catch (err) {
+			console.error('STEP 2:', err);
+			return {};
+		}
+	}, async function (db, row, index) {
+		try {
 			const concatenatedName = row.Marca.trim() + ' ' + row.Modelo.trim();
 
-			const existsProduct = await db.query(`SELECT Producto_ID AS id, Marca, Modelo, Nombre FROM cat_productos WHERE Nombre = '${concatenatedName}'`);
+			const existsProduct = await db.query(`SELECT Producto_ID AS id, Marca, Modelo, Nombre FROM cat_productos WHERE Nombre = UPPER('${concatenatedName}')`);
 
 			return {
 				id: existsProduct.length ? existsProduct[0].id : null,
-				brand: row.Marca,
-				model: row.Modelo,
-				name: concatenatedName
+				brand: row.Marca.trim().toUpperCase(),
+				model: row.Modelo.trim().toUpperCase(),
+				name: concatenatedName.toUpperCase()
 			}
 		} catch (err) {
-			console.error('STEP 1:', err);
+			console.error('STEP 2:', err);
 			return { product: {} };
 		}
 	}, async function (db, row, index, args) {
@@ -66,11 +93,11 @@ module.exports = {
 			return { productId: args.id };
 
 		} catch (err) {
-			console.error('STEP 2:', err);
+			console.error('STEP 3:', err);
 			return;
 		}
 	}, async function (db, row, index, args) {
-		let client = db.data.clients.find(x => x.name === row.Cliente.toLowerCase());
+		let client = db.data.clients.find(x => x.name === row.Cliente.toUpperCase());
 
 		try {
 			const insertRequest = await db.insert({
@@ -96,11 +123,11 @@ module.exports = {
 
 			return { requestId: insertRequest.id, productId: args.productId };
 		} catch (err) {
-			console.error('STEP 3:', err);
+			console.error('STEP 4:', err);
 			return;
 		}
 	}, async function (db, row, index, args) {
-		let client = db.data.clients.find(x => x.name === row.Cliente.toLowerCase());
+		let client = db.data.clients.find(x => x.name === row.Cliente.toUpperCase());
 
 		if (!client) {
 			return;
@@ -138,7 +165,7 @@ module.exports = {
 
 			return { quotationId: insertQuotation.id };
 		} catch (err) {
-			console.error('STEP 4:', err);
+			console.error('STEP 5:', err);
 			return;
 		}
 	}, async function (db, row, index, args) {
@@ -161,12 +188,13 @@ module.exports = {
 					Activo: 1,
 					Usuario_Creacion_ID: '1',
 					Fecha_Firma: db.dateFormatter(new Date(row['Fecha primer Pago']), 'YYYY-MM-DD HH:mm:ss'),
+					Placas: row.Placas
 				}
 			});
 
 			return { contractId: insertContract.id };
 		} catch (err) {
-			console.error('STEP 5:', err);
+			console.error('STEP 6:', err);
 			return;
 		}
 	}],

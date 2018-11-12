@@ -1,15 +1,15 @@
 let count = 0;
-let acumMonto = 0;
+let remMonto = 0;
 let currentContract = 0;
 
 module.exports = {
 	fileName: '2018-11-08-Pagos.xlsx',
-	disabled: false,
+	/* disabled: true, */
 	fields: [],
 	data: {
 		contracts: async function (db) {
 			const rows = await db.target.query(`SELECT C.Contrato_ID AS id, CONCAT(L.Prefijo, C.No_Contrato) as noContrato, CC.Usuario_ID AS clienteId,
-				LOWER(CONCAT(U.Nombre, ' ', U.Apellido_Paterno, ' ', U.Apellido_Materno)) as cliente, C.Fecha_Creacion as fecha, P.nombre AS producto
+				UPPER(CONCAT(U.Nombre, ' ', U.Apellido_Paterno, ' ', U.Apellido_Materno)) as cliente, C.Fecha_Creacion as fecha, P.nombre AS producto
 				FROM cat_contratos C
 				INNER JOIN cat_cotizaciones CC ON CC.Cotizacion_ID = C.Contrato_ID
 				INNER JOIN cat_productos P ON P.Producto_ID = CC.Producto_ID
@@ -20,7 +20,7 @@ module.exports = {
 			return rows;
 		},
 		sourceContracts: async function (db) {
-			const rows = await db.source.query(`SELECT con_identificador AS id, LOWER(con_cliente) AS cliente, CONCAT(con_marca, ' ', con_modelo) AS producto FROM contrato`);
+			const rows = await db.source.query(`SELECT con_identificador AS id, UPPER(con_cliente) AS cliente, CONCAT(con_marca, ' ', con_modelo) AS producto FROM contrato`);
 
 			return rows;
 		}
@@ -29,7 +29,7 @@ module.exports = {
 		if (row['Contrato (ID)'] != currentContract) {
 			currentContract = row['Contrato (ID)'];
 			count = 0;
-			acumMonto = 0;
+			remMonto = 0;
 		}
 
 		try {
@@ -56,16 +56,17 @@ module.exports = {
 
 			let total = (parseFloat(row['Monto']) + parseFloat(row['Multas']) + parseFloat(row['Extras']));
 			let paymentId;
-			payedAmount = acumMonto + parseFloat(row['Monto pagado']);
+
+			payedAmount = remMonto + parseFloat(row['Monto pagado']);
 			if (payedAmount > total) {
-				acumMonto = payedAmount - total;
+				remMonto = (payedAmount - total);
 				payedAmount = total;
 			}
-			const payment = await db.query(`SELECT Pago_ID FROM cat_pagos WHERE Fecha_Pago = '${db.dateFormatter(row['Fecha'], 'YYYY-MM-DD HH:mm:ss')}' AND Contrato_ID = ${args.contract.id} AND Orden = ${order};`);
-			/* console.log('-+-+-+-+-' + JSON.stringify(payment)); */
-			if (payment && payment.length == 1)
-				paymentId = payment[0].Pago_ID;
-			else {
+
+			if (parseFloat(row['Monto']) <= 0) {
+				const payment = await db.query(`SELECT Pago_ID AS id FROM cat_pagos WHERE Contrato_ID = ${args.contract.id} ORDER BY Orden DESC LIMIT 1`);
+				paymentId = payment[0].id;
+			} else if (parseFloat(row['Monto']) > 0) {
 				const paymentInsert = await db.insert({
 					table: 'cat_pagos',
 					fields: {
@@ -95,7 +96,7 @@ module.exports = {
 			return;
 		}
 	}, async function (db, row, index, args) {
-		console.log(args.contract.id);
+		//console.log(args.contract.id);
 		let noteInsert = {};
 		let registerPaymentInsert = {};
 
@@ -113,8 +114,6 @@ module.exports = {
 						Usuario_Creacion_ID: '1'
 					}
 				});
-
-				if (row['Concepto Extra'] == 'pago inicial') return;
 
 				if (row['Monto pagado'] > 0) {
 					registerPaymentInsert = await db.insert({
@@ -167,6 +166,24 @@ module.exports = {
 			console.error('STEP 3:', err);
 			process.exit(0);
 			return;
+		}
+	}, async function (db, row, index, args) {
+		let contractList = db.list.filter(x => x['Contrato (ID)'] == currentContract);
+
+		if (!contractList.length || index < contractList.length - 1) {
+			return;
+		}
+
+		return { list: contractList };
+	}, async function(db, row, index, args) {
+		let auxAcum = 0;
+
+		const filteredPayments = args.list;
+
+		for(let i = 0; i < filteredPayments.length; i++) {
+			const contractPayments = await db.target.query(`SELECT pago_id, contrato_id, fecha_pago, pago, monto, total, orden FROM cat_pagos where contrato_id = ${currentContract} and monto < total ORDER BY Fecha_Pago`)
+			
+
 		}
 	}],
 }
