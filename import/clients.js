@@ -1,3 +1,5 @@
+const util = require('../lib/util');
+
 module.exports = {
 	fileName: '2018-11-06-Clientes.xlsx',
 	/* disabled: true, */
@@ -9,14 +11,12 @@ module.exports = {
 		try {
 			const existsColony = await db.query('select colonia_id AS id from cat_colonias where colonia like "%' + row['Colonia'] + '%" and cp = ' + row['Codigo Postal'] + ';');
 
-			console.log('Step 1:', existsColony.length > 0);
-
 			if (!existsColony.length) {
+				db.log('MISSING_INFO', `No hay registros de Colonia(s) con ${row['Colonia']} y CP: ${row['Codigo Postal']}`);
 				return { coloniaId: null };
 			}
 
-			console.log(existsColony);
-
+			db.log('SUCCESS', `Existe la colonia: ${row['Colonia']} y CP: ${row['Codigo Postal']}`);
 			return { coloniaId: existsColony[0].id };
 		} catch (err) {
 			console.error('STEP 1:', err);
@@ -42,6 +42,8 @@ module.exports = {
 						Usuario_Creacion_ID: '1'
 					}
 				});
+
+				db.log('SUCCESS', `Direccion insertada: ${row['Calle']} ${row['Colonia']} cp: ${row['Codigo Postal']}`);
 			}
 		} catch (err) {
 			console.error('STEP 2:', err);
@@ -52,10 +54,13 @@ module.exports = {
 		console.log('Step: 3', args);
 
 		try {
+			const username = genUsername(db, { firstName: row.Nombre.trim().toLowerCase(), lastName: row['Apellido Paterno'].trim().toLowerCase() })
+			const email = transformEmail(row['Correo'], index);
+
 			const result = await db.insert({
 				table: 'seg_usuarios',
 				fields: {
-					Nombre_Usuario: 'usuario' + (index + 1),
+					Nombre_Usuario: genUsername(),
 					Contrasena: '',
 					Nombre: row.Nombre.trim().toUpperCase(),
 					Apellido_Paterno: row['Apellido Paterno'].trim().toUpperCase(),
@@ -63,7 +68,7 @@ module.exports = {
 					Tel: row['Celular'],
 					Url_Imagen: '',
 					Tel_Local: row['Teléfono local'],
-					Email: transformEmail(row['Correo'], index),
+					Email: email,
 					First_Login: 1,
 					No_Cliente: fillNumber(index),
 					Token_Op: '',
@@ -82,6 +87,7 @@ module.exports = {
 				}
 			});
 
+			db.log('SUCCESS', `Usuario insertado | ID: ${result.id} - ${username}, ${email}`);
 			return { userId: result ? result.id : null };
 		} catch (err) {
 			console.error('STEP 3:', err);
@@ -92,7 +98,7 @@ module.exports = {
 		try {
 			const updateRow = await db.query(`UPDATE seg_usuarios SET Contrasena = MD5('querty.123') WHERE Usuario_ID = ${args.userId}`);
 
-			console.log(updateRow);
+			db.log('SUCCESS', `Contraseña de usuario actualizado | ID: ${args.userId}`);
 		} catch (err) {
 			console.error('STEP 4:', err);
 		}
@@ -115,4 +121,28 @@ const fillNumber = function (index) {
 	if (number > 9999) return number;
 
 	return Array(4 - number.toString().length).fill('0', 0).join('') + (number.toString());
+}
+
+const genUsername = async function (db, obj) {
+	try {
+		let username = util.generateUsername(obj.firstName, obj.lastName);
+
+		const users = db.query(`SELECT Usuario_ID AS id, Nombre_Usuario as username WHERE Usuario_App = 1 AND Nombre_Usuario LIKE('%'${username}'%')`);
+
+		if (!users.length) return username;
+
+		let result = username;
+		let counter = 0;
+
+		users = users.filter(x => x.username.length >= username.length);
+
+		while (users[counter] && result === users[counter].username) {
+			result = username + (counter + 1)
+			counter++;
+		}
+
+		return result;
+	} catch (err) {
+		throw err;
+	}
 }

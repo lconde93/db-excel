@@ -21,12 +21,13 @@ module.exports = {
 		try {
 			const agencyName = row.Agencia.trim();
 			const existAgency = await db.query(`SELECT Agencia_Id AS id FROM cat_agencia WHERE Nombre = UPPER('${agencyName}')`);
+			const agencyName = row.Agencia.trim().toUpperCase();
 
 			if (!existAgency.length) {
 				const insertAgency = await db.insert({
 					table: 'cat_agencias',
 					fields: {
-						Nombre: row.Agencia.trim().toUpperCase(),
+						Nombre: agencyName,
 						Descripcion: '',
 						Fecha_Creacion: db.dateFormatter(new Date(), 'YYYY-MM-DD HH:mm:ss'),
 						Fecha_Actualizacion: db.dateFormatter(new Date(), 'YYYY-MM-DD HH:mm:ss'),
@@ -36,6 +37,8 @@ module.exports = {
 						Usuario_Actualizacion_ID: '1',
 					}
 				});
+
+				db.log('SUCCESS', `Agencia insertada | ID: ${insertAgency.id}, Nombre: ${agencyName}`);
 				return { agencyId: insertAgency.id };
 			}
 
@@ -84,6 +87,7 @@ module.exports = {
 				});
 
 				if (insertProduct.id) {
+					db.log('SUCCESS', `Vehiculo insertado | ID: ${insertProduct.id}, Nombre: ${args.name}`);
 					args.id = insertProduct.id;
 				} else {
 					return;
