@@ -27,7 +27,7 @@ const linesList = [{
 module.exports = {
 	fileName: 'Pagos',
 	rawQuery: `SELECT par_identificador, CCON.con_identificador AS con_identificador, CCON.con_cliente AS con_cliente, par_fecha, par_monto, 
-		par_referencia, par_fecha_pago, par_penas, par_monto_pagado, par_remanente, par_observaciones, par_especial, par_extra, par_extra_activo, 
+		par_referencia, par_fecha_pago, par_penas, par_monto_pagado, par_remanente, par_observaciones, par_extra, 
 		par_monto_extra, par_monto_pena, CCON.con_tipo
 			FROM parcialidades PA 
 			INNER JOIN contrato CCON 

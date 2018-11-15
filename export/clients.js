@@ -14,8 +14,6 @@ module.exports = {
 
                 if (item.acr_interior == 's/n' || item.acr_interior == 'S/N' || item.acr_interior == '--' || item.acr_interior == 'SN')
                     item.acr_interior = '';
-                
-                /* item.noContrato = 'C00' + ++count; */
 
                 users.push(item);
             }

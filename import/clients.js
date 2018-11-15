@@ -2,28 +2,27 @@ const util = require('../lib/util');
 
 module.exports = {
 	fileName: '2018-11-06-Clientes.xlsx',
-	/* disabled: true, */
+	disabled: true,
 	fields: [/* {
 		sourceName: 'Id',
 		targetName: 'identif'
 	} */],
 	steps: [async function (db, row, index) {
 		try {
-			const existsColony = await db.query('select colonia_id AS id from cat_colonias where colonia like "%' + row['Colonia'] + '%" and cp = ' + row['Codigo Postal'] + ';');
+			const existsColony = await db.query(`select colonia_id AS id from cat_colonias where colonia like "%${row['Colonia']}%" and cp = ${row['Codigo Postal']};`);
 
 			if (!existsColony.length) {
 				db.log('MISSING_INFO', `No hay registros de Colonia(s) con ${row['Colonia']} y CP: ${row['Codigo Postal']}`);
 				return { coloniaId: null };
 			}
 
-			db.log('SUCCESS', `Existe la colonia: ${row['Colonia']} y CP: ${row['Codigo Postal']}`);
+			db.log('SUCCESS', `ID ${existsColony[0].id} Existe la colonia: ${row['Colonia']} CP: ${row['Codigo Postal']}`);
 			return { coloniaId: existsColony[0].id };
 		} catch (err) {
 			console.error('STEP 1:', err);
 			return { coloniaId: null };
 		}
 	}, async function (db, row, index, args) {
-		console.log('Step: 2', args);
 		let result = null;
 
 		try {
@@ -43,7 +42,7 @@ module.exports = {
 					}
 				});
 
-				db.log('SUCCESS', `Direccion insertada: ${row['Calle']} ${row['Colonia']} cp: ${row['Codigo Postal']}`);
+				db.log('SUCCESS', `Direccion insertada | ID: ${result.id}, ${row['Calle']}, ${row['Colonia']} CP ${row['Codigo Postal']}`);
 			}
 		} catch (err) {
 			console.error('STEP 2:', err);
@@ -51,16 +50,22 @@ module.exports = {
 
 		return { direccionId: result ? result.id : null };
 	}, async function (db, row, index, args) {
-		console.log('Step: 3', args);
-
 		try {
-			const username = genUsername(db, { firstName: row.Nombre.trim().toLowerCase(), lastName: row['Apellido Paterno'].trim().toLowerCase() })
+			const concatenatedName = row.Nombre.trim().toUpperCase() + ' ' + row['Apellido Paterno'].trim().toUpperCase() + ' ' + row['Apellido Materno'].trim().toUpperCase();
+			const username = await genUsername(db, { firstName: row.Nombre.trim().toLowerCase(), lastName: row['Apellido Paterno'].trim().toLowerCase() })
 			const email = transformEmail(row['Correo'], index);
+
+			const existsEmail = await db.query(`SELECT Usuario_ID AS id FROM seg_usuarios WHERE email = '${email}' AND Usuario_App = 1`);
+
+			if (existsEmail.length) {
+				db.log('REPEATED', `El email se repite | Fila: ${index + 1}, ID: ${existsEmail[0].id}, Email: ${email}, Cliente: ${concatenatedName}`);
+				return;
+			}
 
 			const result = await db.insert({
 				table: 'seg_usuarios',
 				fields: {
-					Nombre_Usuario: genUsername(),
+					Nombre_Usuario: username,
 					Contrasena: '',
 					Nombre: row.Nombre.trim().toUpperCase(),
 					Apellido_Paterno: row['Apellido Paterno'].trim().toUpperCase(),
@@ -87,7 +92,7 @@ module.exports = {
 				}
 			});
 
-			db.log('SUCCESS', `Usuario insertado | ID: ${result.id} - ${username}, ${email}`);
+			db.log('SUCCESS', `Usuario insertado | ID: ${result.id} - ${username} - ${email} Fila: ${index + 1} Nombre: ${concatenatedName} Dirección: ${args.direccionId ? 'SI' : 'NO'}`);
 			return { userId: result ? result.id : null };
 		} catch (err) {
 			console.error('STEP 3:', err);
@@ -98,7 +103,7 @@ module.exports = {
 		try {
 			const updateRow = await db.query(`UPDATE seg_usuarios SET Contrasena = MD5('querty.123') WHERE Usuario_ID = ${args.userId}`);
 
-			db.log('SUCCESS', `Contraseña de usuario actualizado | ID: ${args.userId}`);
+			db.log('SUCCESS', `Contraseña de usuario actualizada | ID: ${args.userId}`);
 		} catch (err) {
 			console.error('STEP 4:', err);
 		}
@@ -127,7 +132,7 @@ const genUsername = async function (db, obj) {
 	try {
 		let username = util.generateUsername(obj.firstName, obj.lastName);
 
-		const users = db.query(`SELECT Usuario_ID AS id, Nombre_Usuario as username WHERE Usuario_App = 1 AND Nombre_Usuario LIKE('%'${username}'%')`);
+		let users = await db.query(`SELECT Usuario_ID AS id, Nombre_Usuario as username FROM seg_usuarios WHERE Nombre_Usuario LIKE "%${username}%"`);
 
 		if (!users.length) return username;
 
@@ -137,7 +142,7 @@ const genUsername = async function (db, obj) {
 		users = users.filter(x => x.username.length >= username.length);
 
 		while (users[counter] && result === users[counter].username) {
-			result = username + (counter + 1)
+			result = username + (counter + 1);
 			counter++;
 		}
 

@@ -13,6 +13,7 @@
     "debug": "~2.6.9",
     "moment": "^2.22.2",
     "promise-mysql": "^3.3.1",
+    "sanitize": "^2.1.0",
     "xlsx": "^0.14.0"
   }
 }

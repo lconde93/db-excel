@@ -44,7 +44,6 @@ module.exports = {
 
 			item.con_gps = item.con_gps ? 'Si' : 'No';
 			item.con_sensor = item.con_sensor == '1' ? 'Si' : 'No';
-			/* item.con_placas = item.con_placas ? 'Si' : 'No'; */
 			item.con_trabapalancas = item.con_trabapalancas == '1' ? 'Si' : 'No';
 
 			item.con_activo = item.con_activo === '0' ? 'No' : 'Si';

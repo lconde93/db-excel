@@ -1,7 +1,8 @@
 module.exports = {
 	fileName: 'Extras',
     rawQuery: `
-		SELECT con.con_identificador, con.con_cliente, fin.fin_concepto ,fin.fin_total, fin.fin_inicial, fin.fin_financiado, fin.fin_financiamiento, fin.fin_pagos, fin.fin_pagomonto 
+		SELECT con.con_identificador, con.con_cliente, fin.fin_concepto ,fin.fin_total, fin.fin_inicial, fin.fin_financiado, 
+		fin.fin_financiamiento, fin.fin_pagos, fin.fin_pagomonto 
 		FROM financiamiento fin
 	        INNER JOIN(
 				SELECT con_identificador, con_cliente FROM contrato
