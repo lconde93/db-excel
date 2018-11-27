@@ -26,7 +26,7 @@ const linesList = [{
 
 module.exports = {
 	fileName: 'Contratos',
-	rawQuery: `SELECT con_identificador, con_tipo, con_cliente, con_inicial, con_semanal, con_primer_pago, con_pagare, 
+	rawQuery: `SELECT con_identificador, con_tipo, con_cliente, con_semanal, con_primer_pago, con_pagare, 
 		con_marca, con_modelo, con_gps, con_trabapalancas, con_sensor, con_placas, con_factura, con_motor, con_agencia,
 		con_activo, con_semanas
 		FROM contrato;`,
@@ -66,10 +66,6 @@ module.exports = {
 	}, {
 		sourceName: 'id_linea',
 		targetName: 'Linea (ID)',
-		defaultValue: ''
-	}, {
-		sourceName: 'con_cliente_id',
-		targetName: 'Cliente (ID)',
 		defaultValue: ''
 	}, {
 		sourceName: 'con_cliente',

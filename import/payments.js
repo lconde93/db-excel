@@ -144,31 +144,46 @@ module.exports = {
 		return { list: contractList, contract: args.contract };
 	}, async function (db, row, index, args) {
 		const realPaymentsExcel = args.list.filter(x => x['Monto pagado'] > 0);
+		let totalAmount = realPaymentsExcel.map(x => parseFloat(x['Monto pagado'])).reduce((prev, x) => {
+			return prev + x;
+		}, 0);
+		let auxTotalAmount = totalAmount;
+
+		const scheduledPayments = await db.query(`SELECT Pago_ID, Pago, Monto, Total, Fecha_Pago, Activo, Visible FROM cat_pagos WHERE Contrato_ID = ${args.contract.id} AND Monto < Total ORDER BY Fecha_Pago;`);
+		const copiedScheduledPayments = scheduledPayments.slice();
 
 		console.log(args.contract);
 
 		try {
 			for (let i = 0; i < realPaymentsExcel.length; i++) {
 				const item = realPaymentsExcel[i];
-				const pagoId = await db.query(`SELECT Pago_ID AS id FROM cat_pagos WHERE Monto < Total AND Contrato_ID = ${args.contract.id} ORDER BY Fecha_Pago`);
+				const findPagoProg = copiedScheduledPayments.findIndex(x => x.Monto < x.Total);
 
-				if (!pagoId.length) {
+				if (!findPagoProg) {
 					db.log('SUCCESS', `No se inserto pago real | Contrato_ID: ${args.contract.id} No. Contrato: ${args.contract.noContrato} Index: ${i}`);
 					return;
 				}
 
+				if (auxTotalAmount > copiedScheduledPayments[findPagoProg].Total) {
+					copiedScheduledPayments[findPagoProg].Monto = copiedScheduledPayments[findPagoProg].Total;
+					auxTotalAmount = auxTotalAmount - copiedScheduledPayments[findPagoProg].Total;
+				} else {
+					copiedScheduledPayments[findPagoProg].Monto = auxTotalAmount;
+				}
+
 				const register = await registerPayment(db, {
 					monto: item['Monto pagado'],
-					pagoId: pagoId[0].id,
+					pagoId: copiedScheduledPayments[findPagoProg].id,
 					referencia: item['Referencia'],
 					fecha: item['Fecha Pago']
 				}, i);
 
-				const scheduledPayments = await db.query(`SELECT Pago_ID, Pago, Monto, Total, Fecha_Pago, Activo, Visible FROM cat_pagos WHERE Contrato_ID = ${args.contract.id} AND Monto < Total ORDER BY Fecha_Pago;`);
-				const updateScheduled = await updatePaymentsList(db, scheduledPayments.slice(), item['Monto pagado']);
-
 				db.log('SUCCESS', `Pago real insertado | ID: ${register.id} Contrato_ID: ${args.contract.id} No. Contrato: ${args.contract.noContrato}`);
 			}
+
+			let modifiedPayments = updatePaymentsList(scheduledPayments.slice(), totalAmount);
+
+			const updateScheduled = await updatePaymentsDB(db, modifiedPayments);
 		} catch (err) {
 			console.error('STEP 4:', err);
 			process.exit(0);
@@ -186,52 +201,41 @@ const fillNumber = function (index) {
 	return Array(4 - number.toString().length).fill('0', 0).join('') + (number.toString());
 }
 
-const updatePaymentsList = async function (db, array, totalAmount) {
+const updatePaymentsList = async function (array, totalAmount) {
+	let auxArray = array.slice();
+	let auxTotalAmount = totalAmount;
+
 	for (let i = 0; i < array.length; i++) {
-		let newAmount = 0;
-		let payment = Object.assign({}, array[i]);
+		let payment = auxArray[i];
+		let auxAmount = auxTotalAmount;
 
-		if (i == (array.length - 1)) {
-			newAmount = totalAmount;
-			totalAmount = totalAmount - newAmount;
-		} else {
-			let amountDifference = payment.Total - payment.Monto; //monto que se le puede agregar al registro
-			if (totalAmount >= amountDifference) {//se hace un pago parcial con lo maximo que se puede pagara para ese registro
-				newAmount = payment.Monto + amountDifference;
-				totalAmount = totalAmount - amountDifference;
-			}
-			else {
-				newAmount = totalAmount + payment.Monto;
-				totalAmount = totalAmount - newAmount;
-			}
+		if (auxAmount > payment.Total) {
+			auxAmount = payment.Total;
+			auxTotalAmount = auxTotalAmount - payment.Total;
 		}
 
-		try {
-			const update = await updatePayment(db, payment, newAmount);
-		} catch (err) {
-			throw err;
-		}
-
-		if (totalAmount <= 0) {
-			break
-		}
+		payment.Monto = auxAmount;
 	}
 
-	return 'SUCCESS';
+	return auxArray;
 }
 
-const updatePayment = async function (db, payment, amount) {
+const updatePaymentsDB = async function (db, payments) {
 	try {
-		const updateResult = await db.query(`
-			UPDATE cat_pagos SET
-				Pago = ?,
-				Monto = ?,
-				Total = ?,
-				Fecha_Pago = ?,
-				Activo = ?,
-				Visible = ?
-			WHERE Pago_ID = ?;
-		`, [payment.Pago, amount, payment.Total, payment.Fecha_Pago, payment.Activo, payment.Visible, payment.Pago_ID]);
+		for (let i = 0; i < payments.length; i++) {
+			const payment = payments[i];
+
+			const updateResult = await db.query(`
+				UPDATE cat_pagos SET
+					Pago = ?,
+					Monto = ?,
+					Total = ?,
+					Fecha_Pago = ?,
+					Activo = ?,
+					Visible = ?
+				WHERE Pago_ID = ?;
+			`, [payment.Pago, payment.Monto, payment.Total, payment.Fecha_Pago, payment.Activo, payment.Visible, payment.Pago_ID]);
+		}
 	} catch (err) {
 		console.log('UPDATE PAYMENT ERROR:', err);
 		return false;

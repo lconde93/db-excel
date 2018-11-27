@@ -23,7 +23,7 @@ module.exports = {
         /* sourcePath: 'C:/Users/e-bitware/Documents/Node/db-excel/export',
         path: 'C:/Users/e-bitware/Documents/excelPrueba', */
         sourcePath: 'C:/Users/AV90197/Documents/node-projects/db-excel/export',
-        path: 'C:/Users/AV90197/Documents/Documentacion/Fintra/Layouts/201811141304',
+        path: 'C:/Users/AV90197/Documents/Documentacion/Fintra/Layouts/201811151350',
         timestamps: true
     },
     import: {

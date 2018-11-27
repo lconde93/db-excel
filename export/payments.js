@@ -27,7 +27,7 @@ const linesList = [{
 module.exports = {
 	fileName: 'Pagos',
 	rawQuery: `SELECT par_identificador, CCON.con_identificador AS con_identificador, CCON.con_cliente AS con_cliente, par_fecha, par_monto, 
-		par_referencia, par_fecha_pago, par_penas, par_monto_pagado, par_remanente, par_observaciones, par_extra, 
+		par_referencia, par_fecha_pago, par_monto_pagado, par_remanente, par_observaciones, par_extra, 
 		par_monto_extra, par_monto_pena, CCON.con_tipo
 			FROM parcialidades PA 
 			INNER JOIN contrato CCON 
@@ -36,12 +36,12 @@ module.exports = {
 		let list = rows.slice();
 		let count = 0;
 
-		for (let item of list) { 
+		for (let item of list) {
 			let findType = linesList.findIndex(x => x.source === item.con_tipo);
 
 			if (findType > -1) {
 				item.con_tipo = linesList[findType].name;
-				item.id_linea = linesList[findType].id;
+				/* item.id_linea = linesList[findType].id; */
 			}
 		}
 
@@ -58,14 +58,6 @@ module.exports = {
 	}, {
 		sourceName: 'con_tipo',
 		targetName: 'Linea de Negocio',
-		defaultValue: ''
-	}, {
-		sourceName: 'id_linea',
-		targetName: 'Linea (ID)',
-		defaultValue: ''
-	}, {
-		sourceName: 'no_contrato',
-		targetName: 'No. Contrato',
 		defaultValue: ''
 	}, {
 		sourceName: 'con_cliente',
