@@ -1,10 +1,10 @@
 module.exports = {
-	fileName: '2018-11-14-Extras.xlsx',
-	disabled: true,
+	fileName: 'PERSONA FISICA EXTRAS.xlsx',
+	/* disabled: true, */
 	fields: [],
 	data: {
 		payments: async function (db) {
-			const rows = await db.target.query(`SELECT P.Pago_ID AS id C.Contrato_ID AS contratoId, CONCAT(L.Prefijo, C.No_Contrato) as noContrato,
+			const rows = await db.target.query(`SELECT P.Pago_ID AS id, C.Contrato_ID AS contratoId, CONCAT(L.Prefijo, C.No_Contrato) as noContrato,
 				P.fecha_Pago, P.Orden, P.Monto, P.Total
 				FROM cat_pagos P
 				INNER JOIN cat_contratos C ON C.Contrato_ID = P.Contrato_ID
@@ -28,18 +28,25 @@ module.exports = {
 		}
 	},
 	steps: [async function (db, row, index) {
+		const contract = db.data.contracts.find(x => x.id === row['Contrato (ID)']);
+
+		if (!contract) {
+			db.log('ERROR', `No existe el contrato con ID: ${row['Contrato (ID)']}`);
+			return;
+		}
+
 		try {
 			const insert = await db.insert({
 				table: 'tramites_multas',
 				fields: {
 					Contrato_ID: row['Contrato (ID)'],
-					Orden: 1,
-					Tipo: 3,
+					Orden: row['Semana aplicacion'],
+					Tipo: row['Multas'] == 'Si' ? 2 : 3,
 					Concepto: row['Concepto'],
 					Total: row['Total a pagar'],
 					Monto: row['Monto a pagar'],
 					No_Pagos: row['No. Pagos'],
-					Financiamiento: row['Financiamiento'],
+					Financiamento: row['Financiamiento'],
 					Pago_Inicial: row['Pago inicial'],
 					Registro_Pago_ID: null,
 					Fecha_Creacion: db.dateFormatter(new Date(), 'YYYY-MM-DD HH:mm:ss'),
@@ -53,10 +60,35 @@ module.exports = {
 				}
 			});
 
-			db.log('SUCCESS', `Extra insertado | ID: ${insert.id} Nombre: ${row['Concepto']} Contrato_ID: ${row['Contrato (ID)']}`);
+			db.log('SUCCESS', `Extra insertado | ID: ${insert.id} Nombre: ${row['Concepto']} Contrato_ID: ${contract.id}`);
+			return { contract: contract };
+		} catch (err) {
+			console.log('Step: 1', err);
+			process.exit(0);
+		}
+	}, async function (db, row, index, args) {
+		try {
+			const minOrden = row['Semana aplicacion'];
+			const maxOrden = minOrden + row['No. Pagos'];
+
+			const scheduledPayments = await db.query(`SELECT Pago_ID, Monto, Total, Orden FROM cat_pagos 
+				WHERE Contrato_ID = ${args.contract.id} 
+				AND Orden >= ${minOrden} AND Orden < ${maxOrden}`)
+
+			for (let i = 0; i < scheduledPayments.length; i++) {
+				let item = scheduledPayments[i];
+				let beforeUpdate = item.Total;
+				let newAmount = item.Total + row['Monto a pagar'];
+
+				const updateScheduled = await db.query(`UPDATE cat_pagos SET Total = ${newAmount} WHERE Pago_ID = ${item.Pago_ID}`);
+
+				db.log('SUCCESS', `Monto total de pago programado actualizado | ID: ${item.Pago_ID}, Orden: ${item.Orden} Total antes de actualizar: $${beforeUpdate}, Total despues de actualizar: $${newAmount}, Contrato_ID: ${args.contract.id}, No. Contrato: ${args.contract.noContrato}`);
+			}
+
 			return;
 		} catch (err) {
 			console.log('Step: 2', err);
+			process.exit(0);
 		}
 	}]
 }

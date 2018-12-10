@@ -1,7 +1,7 @@
 const util = require('../lib/util');
 
 module.exports = {
-	fileName: '2018-11-06-Clientes.xlsx',
+	fileName: '2018-11-15-Clientes.xlsx',
 	disabled: true,
 	fields: [/* {
 		sourceName: 'Id',
@@ -51,7 +51,7 @@ module.exports = {
 		return { direccionId: result ? result.id : null };
 	}, async function (db, row, index, args) {
 		try {
-			const concatenatedName = row.Nombre.trim().toUpperCase() + ' ' + row['Apellido Paterno'].trim().toUpperCase() + ' ' + row['Apellido Materno'].trim().toUpperCase();
+			const concatenatedName = row.Nombre.trim() + ' ' + row['Apellido Paterno'].trim() + ' ' + row['Apellido Materno'].trim();
 			const username = await genUsername(db, { firstName: row.Nombre.trim().toLowerCase(), lastName: row['Apellido Paterno'].trim().toLowerCase() })
 			const email = transformEmail(row['Correo'], index);
 
@@ -67,15 +67,15 @@ module.exports = {
 				fields: {
 					Nombre_Usuario: username,
 					Contrasena: '',
-					Nombre: row.Nombre.trim().toUpperCase(),
-					Apellido_Paterno: row['Apellido Paterno'].trim().toUpperCase(),
-					Apellido_Materno: row['Apellido Materno'].trim().toUpperCase(),
+					Nombre: row.Nombre.trim(),
+					Apellido_Paterno: row['Apellido Paterno'] == '-' ? '' : row['Apellido Paterno'].trim(),
+					Apellido_Materno: row['Apellido Materno'] == '-' ? '' : row['Apellido Materno'].trim(),
 					Tel: row['Celular'],
 					Url_Imagen: '',
 					Tel_Local: row['Teléfono local'],
 					Email: email,
 					First_Login: 1,
-					No_Cliente: fillNumber(index),
+					No_Cliente: fillNumber(row['Id'] - 4),
 					Token_Op: '',
 					Estatus: '0',
 					Tipo: '0',

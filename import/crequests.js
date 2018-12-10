@@ -5,7 +5,7 @@ module.exports = {
 	data: {
 		clients: async function (db) {
 			const rows = await db.target.query(`SELECT Usuario_ID AS id, UPPER(CONCAT(Nombre, ' ', Apellido_Paterno, ' ', Apellido_Materno)) AS name,
-				email, tel, tel_local
+				email, tel, tel_local, No_Cliente AS noCliente
 				FROM seg_usuarios 
 				WHERE Usuario_App = 1`);
 
@@ -59,7 +59,7 @@ module.exports = {
 	},
 	steps: [async function (db, row, index) {
 		try {
-			const concatenatedName = row['acr_nombre'].trim().toUpperCase() + ' ' + row['acr_paterno'].trim().toUpperCase() + ' ' + row['acr_materno'].trim().toUpperCase();
+			const concatenatedName = row['acr_nombre'].trim() + ' ' + row['acr_paterno'].trim() + ' ' + row['acr_materno'].trim();
 
 			let request = db.data.requests.find(x => x.cliente == concatenatedName);
 

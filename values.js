@@ -28,7 +28,7 @@ module.exports = {
     },
     import: {
         sourcePath: 'C:/Users/AV90197/Documents/node-projects/db-excel/import',
-        path: 'C:/Users/AV90197/Documents/Documentacion/Fintra/CargasMasivas',
+        path: 'C:/Users/AV90197/Documents/Documentacion/Fintra/CargasMasivas-20181115',
         logPath: 'C:/Users/AV90197/Documents/Documentacion/Fintra/LogsCargas',
     }
 }

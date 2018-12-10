@@ -1,11 +1,12 @@
 module.exports = {
-	fileName: '2018-11-01-Contratos.xlsx',
+	fileName: '2018-11-15-Contratos.xlsx',
 	disabled: true,
 	fields: [],
 	data: {
 		clients: async function (db) {
 			const rows = await db.target.query(`SELECT Usuario_ID AS id, UPPER(CONCAT(Nombre, ' ', Apellido_Paterno, ' ', Apellido_Materno)) AS name,
-				email, tel, tel_local
+				CONCAT(Nombre, ' ', Apellido_Paterno, ' ', Apellido_Materno) AS fullName,
+				email, tel, tel_local, No_Cliente as noCliente
 				FROM seg_usuarios 
 				WHERE Usuario_App = 1`);
 
@@ -104,8 +105,9 @@ module.exports = {
 			return;
 		}
 	}, async function (db, row, index, args) {
-		const clientName = row.Cliente.trim().toUpperCase();
-		let client = db.data.clients.find(x => x.name === clientName);
+		const clientName = row.Cliente.trim();
+		const clientNumber = parseInt(row['Cliente (ID)']) - 3;
+		let client = db.data.clients.find(x => parseInt(x.noCliente) == clientNumber);
 
 		if (!client) {
 			db.log('ERROR', `Solicitud | No existe el cliente | Nombre: ${clientName}`);
@@ -116,7 +118,7 @@ module.exports = {
 			const insertRequest = await db.insert({
 				table: 'cat_solicitudes',
 				fields: {
-					Nombre: clientName,
+					Nombre: client.fullName,
 					Tipo_Solicitud_ID: db.data.requestTypes.find(x => x.Linea_ID == row['Linea (ID)']).Solicitud_ID,
 					Archivo: db.dateFormatter(new Date(), 'YYYYMMDDHHmmsstt') + '_solicitud.html',
 					Informacion: JSON.stringify({
@@ -124,6 +126,7 @@ module.exports = {
 						clientName: client.name,
 						clientPhone: client.tel,
 						clientEmail: client.email,
+						clientNumber: client.noCliente
 					}),
 					Deposito_Garantia: row['Deposito en Garantía'],
 					Fecha_Creacion: db.dateFormatter(new Date(), 'YYYY-MM-DD HH:mm:ss'),
@@ -135,19 +138,21 @@ module.exports = {
 			});
 
 			db.log('SUCCESS', `Solicitud insertada | ID: ${insertRequest.id} Cliente: ${clientName} | ${client.name}`);
-			return { requestId: insertRequest.id, productId: args.productId };
+			return { requestId: insertRequest.id, productId: args.productId, client: client };
 		} catch (err) {
 			console.error('STEP 4:', err);
 			return;
 		}
 	}, async function (db, row, index, args) {
-		const clientName = row.Cliente.trim().toUpperCase();
-		let client = db.data.clients.find(x => x.name === clientName);
+		const clientName = row.Cliente.trim();
+		let client = args.client;
 
 		if (!client) {
 			db.log('ERROR', `Cotización | No existe el cliente | Nombre: ${clientName}`);
 			return;
 		}
+
+		let plazo = row['Mensuales'] == 'Si' ? 2 : 1;
 
 		try {
 			const insertQuotation = await db.insert({
@@ -164,6 +169,7 @@ module.exports = {
 					Enganche: 0,
 					Estado: 2,
 					Residual: 0,
+					Plazo: plazo,
 					Tir: 30,
 					Extras: JSON.stringify([]),
 					Seguro: JSON.stringify({}),
@@ -180,19 +186,20 @@ module.exports = {
 			});
 
 			db.log('SUCCESS', `Cotización insertada | ID: ${insertQuotation.id} Cliente: ${clientName}`);
-			return { quotationId: insertQuotation.id };
+			return { quotationId: insertQuotation.id, client: client };
 		} catch (err) {
 			console.error('STEP 5:', err);
 			return;
 		}
 	}, async function (db, row, index, args) {
-		const clientName = row.Cliente.trim().toUpperCase();
+		const clientName = row.Cliente.trim();
 		/* const maxContractNumber = await db.query(`SELECT IFNULL(MAX((No_Contrato * 1)), 0) AS maxContractNumber
 			FROM cat_contratos C 
 			INNER JOIN cat_cotizaciones CC ON CC.Cotizacion_ID = C.Cotizacion_ID 
 			WHERE CC.Linea_ID = "${row['Linea (ID)']}"`); */
-		const contractNumber = fillNumber(row['No. Contrato']);
+		const contractNumber = transformContractNumber(row['No. Contrato']);
 		const line = db.data.lines.find(x => x.id === row['Linea (ID)']);
+		let client = args.client;
 
 		try {
 			const insertContract = await db.insert({
@@ -212,13 +219,17 @@ module.exports = {
 				}
 			});
 
-			db.log('SUCCESS', `Contrato insertado | ID: ${insertContract.id} No_Contrato: ${(line ? line.prefix : '') + contractNumber} Cliente: ${clientName}`);
+			db.log('SUCCESS', `Contrato insertado | ID: ${insertContract.id} No_Contrato: ${row['No. Contrato']} Cliente: ${clientName}`);
 			return { contractId: insertContract.id };
 		} catch (err) {
 			console.error('STEP 6:', err);
 			return;
 		}
 	}],
+}
+
+const transformContractNumber = function (string) {
+	return parseInt(string.replace(/[A-Z]+/, ''));
 }
 
 const fillNumber = function (index) {
