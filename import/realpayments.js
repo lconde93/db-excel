@@ -25,13 +25,20 @@ module.exports = {
 		} */
 	},
 	steps: [async function (db, row, index) {
-		if (row['Contrato (ID)'] != currentContract) {
-			currentContract = row['Contrato (ID)'];
+		const contractId = row['Contrato (ID)'];
+
+		if (contractId != currentContract) {
+			currentContract = contractId;
 			paymentIndex = 0;
 		}
 
 		try {
 			const contract = db.data.contracts.find(x => x.id == currentContract);
+
+			if (!contract) {
+				console.log('No existe el contrato');
+				process.exit(0);
+			}
 
 			return { contract: contract };
 		} catch (err) {
@@ -40,7 +47,7 @@ module.exports = {
 			return;
 		}
 	}, async function (db, row, index, args) {
-		let contractList = db.list.filter(x => x['Contrato (ID)'] == args.contract.id);
+		let contractList = db.list.filter(x => x['Contrato (ID)'] == currentContract);
 
 		if (!contractList.length) return;
 
@@ -51,79 +58,76 @@ module.exports = {
 
 		return { list: contractList, contract: args.contract };
 	}, async function (db, row, index, args) {
-		console.log(args.contract);
-
 		const realPaymentsExcel = args.list.filter(x => x['Monto pagado'] > 0);
 		let totalAmount = realPaymentsExcel.map(x => parseFloat(x['Monto pagado'])).reduce((prev, x) => {
 			return prev + x;
 		}, 0);
-		let auxTotalAmount = totalAmount;
 
-		console.log('62 Contract', args.contract.id, 'TOTAL', totalAmount, 'No pagos');
+		const scheduledPayments = await db.query(`SELECT Pago_ID, Pago, Monto, Total, Orden, Fecha_Pago FROM cat_pagos WHERE Contrato_ID = ${currentContract} AND Monto < Total ORDER BY Fecha_Pago;`);
 
-		const scheduledPayments = await db.query(`SELECT Pago_ID, Pago, Monto, Total, Fecha_Pago, Activo, Visible FROM cat_pagos WHERE Contrato_ID = ${args.contract.id} AND Monto < Total ORDER BY Fecha_Pago;`);
-		const copiedScheduledPayments = scheduledPayments.slice();
+		let modifiedPayments = scheduledPayments.slice();
 
 		try {
 			for (let i = 0; i < realPaymentsExcel.length; i++) {
 				const item = realPaymentsExcel[i];
-				const findPagoProg = copiedScheduledPayments.findIndex(x => x.Monto < x.Total);
+				const findPagoProg = modifiedPayments.findIndex(x => x.Monto < x.Total);
 
 				if (findPagoProg < 0) {
-					db.log('SUCCESS', `No se inserto pago real | Contrato_ID: ${args.contract.id} No. Contrato: ${args.contract.noContrato} Index: ${i}`);
-					return;
-				}
-
-				if (auxTotalAmount > copiedScheduledPayments[findPagoProg].Total) {
-					copiedScheduledPayments[findPagoProg].Monto = copiedScheduledPayments[findPagoProg].Total;
-					auxTotalAmount = auxTotalAmount - copiedScheduledPayments[findPagoProg].Total;
+					db.log('ERROR', `No se inserto pago real | Contrato_ID: ${currentContract} No. Contrato: ${args.contract.noContrato} Index: ${i}`);
 				} else {
-					copiedScheduledPayments[findPagoProg].Monto = auxTotalAmount;
+					const register = await registerPayment(db, {
+						monto: item['Monto pagado'],
+						pagoId: modifiedPayments[findPagoProg].Pago_ID,
+						referencia: item['Referencia'],
+						fecha: item['Fecha Pago'],
+						descripcion: item['Observaciones']
+					}, i);
+
+					modifiedPayments = updatePaymentsList(modifiedPayments, parseFloat(item['Monto pagado']));
+
+					db.log('SUCCESS', `Pago real insertado | ID: ${register.id} Contrato_ID: ${currentContract} No. Contrato: ${args.contract.noContrato}`);
 				}
-
-				const register = await registerPayment(db, {
-					monto: item['Monto pagado'],
-					pagoId: copiedScheduledPayments[findPagoProg].Pago_ID,
-					referencia: item['Referencia'],
-					fecha: item['Fecha Pago'],
-					descripcion: item['Observaciones']
-				}, i);
-
-				db.log('SUCCESS', `Pago real insertado | ID: ${register.id} Contrato_ID: ${args.contract.id} No. Contrato: ${args.contract.noContrato}`);
 			}
 
-			let modifiedPayments = updatePaymentsList(scheduledPayments.slice(), totalAmount);
-
-			const updateScheduled = await updatePaymentsDB(db, modifiedPayments);
+			const updateScheduled = await updatePaymentsDB(db, modifiedPayments, args.contract);
 		} catch (err) {
 			console.error('STEP 4:', err);
 			process.exit(0);
 		}
 
 		return;
-	}],
+	}]
 }
 
-const updatePaymentsList = async function (array, totalAmount) {
+const updatePaymentsList = function (array, totalAmount) {
 	let auxArray = array.slice();
 	let auxTotalAmount = totalAmount;
+	let selectedIndex = auxArray.findIndex(x => x.Monto < x.Total);
 
-	for (let i = 0; i < array.length; i++) {
-		let payment = auxArray[i];
-		let auxAmount = auxTotalAmount;
+	while (auxTotalAmount > 0) {
+		let item = auxArray[selectedIndex];
 
-		if (auxAmount > payment.Total) {
-			auxAmount = payment.Total;
-			auxTotalAmount = auxTotalAmount - payment.Total;
+		if (!item) {
+			auxTotalAmount = 0;
+			break;
 		}
 
-		payment.Monto = auxAmount;
+		let faltante = item.Total - item.Monto;
+
+		if (auxTotalAmount > faltante) {
+			item.Monto = item.Total;
+			auxTotalAmount = auxTotalAmount - faltante;
+			selectedIndex++;
+		} else {
+			item.Monto += auxTotalAmount;
+			auxTotalAmount = 0;
+		}
 	}
 
 	return auxArray;
 }
 
-const updatePaymentsDB = async function (db, payments) {
+const updatePaymentsDB = async function (db, payments, contract) {
 	try {
 		for (let i = 0; i < payments.length; i++) {
 			const payment = payments[i];
@@ -136,8 +140,10 @@ const updatePaymentsDB = async function (db, payments) {
 					Fecha_Pago = ?,
 					Activo = 1,
 					Visible = 1
-				WHERE Pago_ID = ${payment.Pago_ID};
+				WHERE Pago_ID = ${payment.Pago_ID} AND Contrato_ID = ${contract.id};
 			`, [payment.Pago, payment.Monto, payment.Total, payment.Fecha_Pago]);
+
+			db.log('SUCCESS', `Pago programado actualizado | ID: ${payment.Pago_ID} Contrato_ID: ${contract.id} No. Contrato: ${contract.noContrato}`);
 		}
 	} catch (err) {
 		console.log('UPDATE PAYMENT ERROR:', err);
@@ -173,49 +179,3 @@ const registerPayment = async function (db, obj, index) {
 		throw err;
 	}
 }
-
-/* let updatePayments = function (array, totalAmount) {
-	return new Promise((resolve, reject) => {
-		let asyncLoop = function (i, callback) {
-			if (i < array.length) {
-				let newAmount = 0;
-				let payment = array[i];
-
-				if (i == (array.length - 1)) {
-					newAmount = totalAmount;
-					totalAmount = totalAmount - newAmount;
-				} else {
-					let amountDifference = payment.Total - payment.Monto; //monto que se le puede agregar al registro
-					if (totalAmount >= amountDifference) {//se hace un pago parcial con lo maximo que se puede pagara para ese registro
-						newAmount = payment.Monto + amountDifference;
-						totalAmount = totalAmount - amountDifference;
-					}
-					else {
-						newAmount = totalAmount + payment.Monto;
-						totalAmount = totalAmount - newAmount;
-					}
-				}
-
-				sqlQuery = 'CALL sp_update_scheduled_payment(?, ?, ?, ?, ?, ?, ?)';
-				sqlData = [payment.Pago_ID, payment.Pago, newAmount, payment.Total, payment.Fecha_Pago, payment.Activo, payment.Visible];
-
-				Promise.using(getConnection(), function (connection) {
-					return connection.query(sqlQuery, sqlData);
-				}).then(function (rows) {
-					if (totalAmount <= 0)
-						i = array.length;
-					return asyncLoop(++i, callback);
-				}).catch((err) => {
-					return callback(err);
-				});
-			} else {
-				return callback(null, 'SUCCESS');
-			}
-		}
-
-		asyncLoop(0, function (err, result) {
-			if (err) return reject(err);
-			return resolve(result);
-		});
-	});
-} */

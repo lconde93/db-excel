@@ -1,6 +1,6 @@
 module.exports = {
 	fileName: 'PERSONA FISICA EXTRAS.xlsx',
-	/* disabled: true, */
+	disabled: true,
 	fields: [],
 	data: {
 		payments: async function (db) {

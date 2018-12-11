@@ -4,7 +4,7 @@ let paymentIndex = 0;
 
 module.exports = {
 	fileName: 'PERSONA FISICA PAGOS.xlsx',
-	/* disabled: true, */
+	disabled: true,
 	fields: [],
 	data: {
 		contracts: async function (db) {
@@ -43,20 +43,21 @@ module.exports = {
 		}
 	}, async function (db, row, index, args) {
 		try {
-			let order = count + 1;
 			let paymentId = null;
 
 			if (!(row['Concepto Extra'] == '' || row['Concepto Extra'] == undefined || row['Concepto Extra'] == 'pago inicial')) return { ext: true, contract: args.contract };
 
-			if (row['Concepto Extra'] == 'pago inicial') {
-				order = -1;
-			} else {
-				count++;
-			}
-
-			let total = (parseFloat(row['Monto']) + parseFloat(row['Multas']) + parseFloat(row['Extras']));
+			let total = parseFloat(row['Monto']);
 
 			if (total > 0) {
+				let order = count + 1;
+
+				if (row['Concepto Extra'] == 'pago inicial') {
+					order = -1;
+				} else {
+					count++;
+				}
+
 				const paymentInsert = await db.insert({
 					table: 'cat_pagos',
 					fields: {
