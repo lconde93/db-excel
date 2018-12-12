@@ -3,7 +3,7 @@ let paymentIndex = 0;
 
 module.exports = {
 	fileName: 'PERSONA FISICA PAGOS.xlsx',
-	/* disabled: true, */
+	disabled: true,
 	fields: [],
 	data: {
 		contracts: async function (db) {

@@ -4,17 +4,19 @@ let paymentIndex = 0;
 
 module.exports = {
 	fileName: 'PERSONA FISICA PAGOS.xlsx',
-	disabled: true,
+	/* disabled: true, */
 	fields: [],
 	data: {
 		contracts: async function (db) {
 			const rows = await db.target.query(`SELECT C.Contrato_ID AS id, CONCAT(L.Prefijo, C.No_Contrato) as noContrato, CC.Usuario_ID AS clienteId,
-				UPPER(CONCAT(U.Nombre, ' ', U.Apellido_Paterno, ' ', U.Apellido_Materno)) as cliente, C.Fecha_Creacion as fecha, P.nombre AS producto
+				UPPER(CONCAT(U.Nombre, ' ', U.Apellido_Paterno, ' ', U.Apellido_Materno)) as cliente, C.Fecha_Creacion as fecha, P.nombre AS producto,
+				CS.Deposito_Garantia as deposito
 				FROM cat_contratos C
 				INNER JOIN cat_cotizaciones CC ON CC.Cotizacion_ID = C.Cotizacion_ID
 				INNER JOIN cat_productos P ON P.Producto_ID = CC.Producto_ID
 				INNER JOIN seg_usuarios U ON U.Usuario_ID = CC.Usuario_ID
 				INNER JOIN cat_lineas L ON L.Linea_ID = CC.Linea_ID
+				INNER JOIN cat_solicitudes CS ON CC.Solicitud_ID = CS.Solicitud_ID
 			`);
 
 			return rows;
@@ -45,41 +47,80 @@ module.exports = {
 		try {
 			let paymentId = null;
 
-			if (!(row['Concepto Extra'] == '' || row['Concepto Extra'] == undefined || row['Concepto Extra'] == 'pago inicial')) return { ext: true, contract: args.contract };
+			if (!(row['Concepto Extra'] == '' || row['Concepto Extra'] == undefined || (row['Concepto Extra']).toLowerCase().trim() == 'pago inicial' || (row['Concepto Extra']).toLowerCase().trim() == 'pago grupal')) return { ext: true, contract: args.contract };
 
 			let total = parseFloat(row['Monto']);
 
 			if (total > 0) {
 				let order = count + 1;
 
-				if (row['Concepto Extra'] == 'pago inicial') {
+				if ((row['Concepto Extra']).toLowerCase().trim() == 'pago inicial' || (row['Concepto Extra']).toLowerCase().trim() == 'pago grupal') {
 					order = -1;
 				} else {
 					count++;
 				}
 
-				const paymentInsert = await db.insert({
-					table: 'cat_pagos',
-					fields: {
-						Contrato_ID: args.contract.id,
-						Fecha_Pago: db.dateFormatter(row['Fecha'], 'YYYY-MM-DD HH:mm:ss'),
-						Pago: row['Monto'],
-						Total: total,
-						Monto: 0,
-						Orden: order,
-						Estado: '0',
-						Metodo: '0',
-						Tarjeta_ID: null,
-						Refinanciamiento: 0,
-						Fecha_Creacion: db.dateFormatter(args.contract.fecha, 'YYYY-MM-DD HH:mm:ss'),
-						Fecha_Actualizacion: db.dateFormatter(row['Fecha Pago'], 'YYYY-MM-DD HH:mm:ss'),
-						Visible: 1,
-						Activo: 1
-					}
-				});
+				let fechaPago = new Date(row['Fecha']);
+				fecha.setHours(0, 0, 0, 0);
+				let fechaPago = new Date(row['Fecha Pago']);
+				fechaPago.setHours(0, 0, 0, 0);
 
-				db.log('SUCCESS', `Pago programado insertado | ID: ${paymentInsert.id} Contrato_ID: ${args.contract.id}`);
-				paymentId = paymentInsert.id;
+				if (order > 0) {
+					const paymentUpdate = await db.query(`UPDATE cat_pagos SET Monto = ${row['Monto']}, Total = ${row['Monto']}, Fecha_Pago = '${db.dateFormatter(fecha, 'YYYY-MM-DD HH:mm:ss')}', Fecha_Actualizacion = '${db.dateFormatter(fechaPago, 'YYYY-MM-DD HH:mm:ss')}' WHERE Contrato_ID = ${args.contract.id} AND Orden = ${order}`);
+					const auxPayment = await db.query(`SELECT Pago_ID AS id FROM cat_pagos WHERE Contrato_ID = ${args.contract.id} AND Orden = ${order}`);
+
+					db.log('SUCCESS', `Pago programado actualizado | ID: ${paymentUpdate} Contrato_ID: ${args.contract.id} Cantidad: ${row['Monto']}`);
+
+					paymentId = auxPayment[0].id;
+				} else if (order === -1) {
+					const paymentInsert = await db.insert({
+						table: 'cat_pagos',
+						fields: {
+							Contrato_ID: args.contract.id,
+							Fecha_Pago: db.dateFormatter(fecha, 'YYYY-MM-DD HH:mm:ss'),
+							Pago: row['Monto'],
+							Total: total,
+							Monto: 0,
+							Orden: order,
+							Estado: '0',
+							Metodo: '0',
+							Tarjeta_ID: null,
+							Refinanciamiento: 0,
+							Fecha_Creacion: db.dateFormatter(args.contract.fecha, 'YYYY-MM-DD HH:mm:ss'),
+							Fecha_Actualizacion: db.dateFormatter(fechaPago, 'YYYY-MM-DD HH:mm:ss'),
+							Visible: 1,
+							Activo: 1
+						}
+					});
+
+					db.log('SUCCESS', `Pago inicial insertado | ID: ${paymentInsert.id} Contrato_ID: ${args.contract.id} Cantidad: ${row['Monto']}`);
+
+					paymentId = paymentInsert.id;
+
+					if (args.contract.deposito > 0) {
+						const depositInsert = await db.insert({
+							table: 'cat_pagos',
+							fields: {
+								Contrato_ID: args.contract.id,
+								Fecha_Pago: db.dateFormatter(new Date(new Date(row['Fecha']).getTime()), 'YYYY-MM-DD HH:mm:ss'),
+								Pago: row['Monto'],
+								Total: total,
+								Monto: 0,
+								Orden: -2,
+								Estado: '0',
+								Metodo: '0',
+								Tarjeta_ID: null,
+								Refinanciamiento: 0,
+								Fecha_Creacion: db.dateFormatter(args.contract.fecha, 'YYYY-MM-DD HH:mm:ss'),
+								Fecha_Actualizacion: db.dateFormatter(new Date(new Date(row['Fecha Pago']).getTime()), 'YYYY-MM-DD HH:mm:ss'),
+								Visible: 1,
+								Activo: 1
+							}
+						});
+
+						db.log('SUCCESS', `Deposito en garantía insertado | ID: ${depositInsert.id} Contrato_ID: ${args.contract.id} Cantidad: ${row['Monto']}`);
+					}
+				}
 			}
 
 			return { paymentId: paymentId, contract: args.contract };
@@ -107,8 +148,8 @@ module.exports = {
 					fields: {
 						Pago_ID: args.paymentId,
 						Descripcion: row.Observaciones,
-						Fecha_Creacion: db.dateFormatter(row['Fecha'], 'YYYY-MM-DD HH:mm:ss'),
-						Fecha_Actualizacion: db.dateFormatter(row['Fecha'], 'YYYY-MM-DD HH:mm:ss'),
+						Fecha_Creacion: db.dateFormatter(new Date(new Date(row['Fecha']).getTime() - 1000 * 60 * 60 * 24), 'YYYY-MM-DD HH:mm:ss'),
+						Fecha_Actualizacion: db.dateFormatter(new Date(new Date(row['Fecha']).getTime() - 1000 * 60 * 60 * 24), 'YYYY-MM-DD HH:mm:ss'),
 						Visible: 1,
 						Activo: 1,
 						Usuario_Creacion_ID: '1'

@@ -202,6 +202,11 @@ module.exports = {
 		let client = args.client;
 
 		try {
+			let fechaAux = new Date(row['Fecha primer Pago']);
+			fechaAux.setDate(fechaAux.getDate() - 7);
+			fechaAux.setHours(0, 0, 0, 0);
+			let fechaCreacion = db.dateFormatter(fechaAux, 'YYYY-MM-DD HH:mm:ss');
+
 			const insertContract = await db.insert({
 				table: 'cat_contratos',
 				fields: {
@@ -209,8 +214,8 @@ module.exports = {
 					No_Contrato: contractNumber,
 					Descripcion: '',
 					Cotizacion_ID: args.quotationId,
-					Fecha_Creacion: db.dateFormatter(new Date(), 'YYYY-MM-DD HH:mm:ss'),
-					Fecha_Actualizacion: db.dateFormatter(new Date(), 'YYYY-MM-DD HH:mm:ss'),
+					Fecha_Creacion: fechaCreacion,
+					Fecha_Actualizacion: fechaCreacion,
 					Visible: 1,
 					Activo: 1,
 					Usuario_Creacion_ID: '1',
@@ -220,9 +225,82 @@ module.exports = {
 			});
 
 			db.log('SUCCESS', `Contrato insertado | ID: ${insertContract.id} No_Contrato: ${row['No. Contrato']} Cliente: ${clientName}`);
-			return { contractId: insertContract.id };
+			return { contract: { id: insertContract.id, fecha: fechaCreacion } };
 		} catch (err) {
 			console.error('STEP 6:', err);
+			return;
+		}
+	}, async function (db, row, index, args) {
+		try {
+			let noPagos = row['No. Semanas'];
+			let pagoSemanal = row['Pago Semanal'];
+			let startingDate = new Date(row['Fecha primer Pago']);
+			let esquema = row['Mensuales'] == 'Si';
+			startingDate.setHours(0, 0, 0, 0);
+
+			let month = startingDate.getMonth();
+			let year = startingDate.getFullYear();
+
+			let fechaAnterior = startingDate;
+
+			console.log('Insertando pagos programados para contrato:', args.contract.id);
+
+			for (let i = 0; i < noPagos; i++) {
+				let fechaPago = fechaAnterior;
+				let daysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+				const paymentInsert = await db.insert({
+					table: 'cat_pagos',
+					fields: {
+						Contrato_ID: args.contract.id,
+						Fecha_Pago: db.dateFormatter(fechaPago, 'YYYY-MM-DD HH:mm:ss'),
+						Pago: pagoSemanal,
+						Total: pagoSemanal,
+						Monto: 0,
+						Orden: (i + 1),
+						Estado: '0',
+						Metodo: '0',
+						Tarjeta_ID: null,
+						Refinanciamiento: 0,
+						Fecha_Creacion: db.dateFormatter(args.contract.fecha, 'YYYY-MM-DD HH:mm:ss'),
+						Fecha_Actualizacion: db.dateFormatter(args.contract.fecha, 'YYYY-MM-DD HH:mm:ss'),
+						Visible: 1,
+						Activo: 1
+					}
+				});
+
+				if (esquema) { // Mensual
+					if (year % 400 == 0 || (year % 100 != 0 && year % 4 == 0)) {
+						daysInMonth[1] = 29;
+					}
+
+					month++;
+					if (month == 12) {
+						month = 0;
+						year++;
+					}
+
+					fechaPago.setMonth(month);
+					fechaPago.setFullYear(year);
+
+					if (startingDate.getDate() > daysInMonth[month]) {
+						fechaPago.setDate(daysInMonth[month]);
+					} else {
+						fechaPago.setDate(startingDate.getDate());
+					}
+
+					fechaAnterior = fechaPago;
+				} else { // Semanal
+					fechaAnterior.setDate(fechaPago.getDate() + 7);
+				}
+			}
+
+			db.log('SUCCESS', `Pagos programados insertados | Contrato_ID: ${args.contract.id} Cantidad: ${pagoSemanal} No. Pagos ${noPagos}`);
+
+			return;
+		} catch (err) {
+			console.error('STEP 2:', err);
+			process.exit(0);
 			return;
 		}
 	}],
