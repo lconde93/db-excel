@@ -307,7 +307,7 @@ module.exports = {
 }
 
 const transformContractNumber = function (string) {
-	return parseInt(string.replace(/[A-Z]+/, ''));
+	return fillNumber(parseInt(string.replace(/[A-Z]+/, '')));
 }
 
 const fillNumber = function (index) {
