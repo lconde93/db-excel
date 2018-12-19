@@ -1,3 +1,5 @@
+const pagosPlazo = [52, 12];
+
 module.exports = {
 	fileName: '2018-11-15-Contratos.xlsx',
 	disabled: true,
@@ -99,7 +101,7 @@ module.exports = {
 				}
 			}
 
-			return { productId: args.id };
+			return { productId: args.id, productName: args.name };
 		} catch (err) {
 			console.error('STEP 3:', err);
 			return;
@@ -115,6 +117,8 @@ module.exports = {
 		}
 
 		try {
+			const deposit = isNaN(row['Deposito en Garantía']) ? 0 : row['Deposito en Garantía'];
+
 			const insertRequest = await db.insert({
 				table: 'cat_solicitudes',
 				fields: {
@@ -122,13 +126,21 @@ module.exports = {
 					Tipo_Solicitud_ID: db.data.requestTypes.find(x => x.Linea_ID == row['Linea (ID)']).Solicitud_ID,
 					Archivo: db.dateFormatter(new Date(), 'YYYYMMDDHHmmsstt') + '_solicitud.html',
 					Informacion: JSON.stringify({
-						deposit: row['Deposito en Garantía'],
+						exp_deposito_garantia: deposit,
 						clientName: client.name,
 						clientPhone: client.tel,
 						clientEmail: client.email,
-						clientNumber: client.noCliente
+						clientNumber: client.noCliente,
+						contractNumber: row['No Contrato'],
+						producto_id: args.productId,
+						consecutivo_contrato: transformContractNumber(row['No. Contrato']),
+						pago_semanal: row['Pago Semanal'],
+						producto: args.productName,
+						linea_id: row['Linea (ID)'],
+						fecha_primer_pago: row['Fecha primer pago'],
+						placas: row['Placas']
 					}),
-					Deposito_Garantia: row['Deposito en Garantía'],
+					Deposito_Garantia: deposit,
 					Fecha_Creacion: db.dateFormatter(new Date(), 'YYYY-MM-DD HH:mm:ss'),
 					Fecha_Actualizacion: db.dateFormatter(new Date(), 'YYYY-MM-DD HH:mm:ss'),
 					Visible: 1,
@@ -153,6 +165,7 @@ module.exports = {
 		}
 
 		let plazo = row['Mensuales'] == 'Si' ? 2 : 1;
+		let anios = parseInt(row['No. Semanas']) / pagosPlazo[plazo - 1];
 
 		try {
 			const insertQuotation = await db.insert({
@@ -163,7 +176,7 @@ module.exports = {
 					Usuario_ID: client.id,
 					Producto_ID: args.productId,
 					Linea_ID: row['Linea (ID)'],
-					Pago: row['Pago Semanal'],
+					Pago: anios.toFixed(3),
 					Fecha_Pago_Inicial: db.dateFormatter(new Date(row['Fecha primer Pago']), 'YYYY-MM-DD HH:mm:ss'),
 					Reserva: 0,
 					Enganche: 0,

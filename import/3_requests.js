@@ -1,3 +1,5 @@
+const clientCounts = {}
+
 module.exports = {
 	fileName: '2018-11-14-Solicitudes.xlsx',
 	disabled: true,
@@ -5,7 +7,7 @@ module.exports = {
 	data: {
 		clients: async function (db) {
 			const rows = await db.target.query(`SELECT Usuario_ID AS id, UPPER(CONCAT(Nombre, ' ', Apellido_Paterno, ' ', Apellido_Materno)) AS name,
-				email, tel, tel_local, No_Cliente AS noCliente
+				email, tel, tel_local, (No_Cliente * 1) AS noCliente
 				FROM seg_usuarios 
 				WHERE Usuario_App = 1`);
 
@@ -14,11 +16,19 @@ module.exports = {
 		requests: async function (db) {
 			const rows = await db.target.query(`
 				SELECT CS.Solicitud_ID AS id, CS.Nombre AS name, UPPER(CONCAT(SU.Nombre, ' ', SU.Apellido_Paterno, ' ', SU.Apellido_Materno)) AS cliente, 
-				CS.Informacion AS info
-					FROM cat_cotizaciones CC 
+				CS.Informacion AS info, UPPER(P.nombre) as producto, CS.Deposito_Garantia as deposito, CONCAT(L.Prefijo, CCON.No_Contrato) AS noContrato, 
+				L.Linea_ID AS lineaId, CCON.No_Contrato AS consecutivoContrato, (SU.No_Cliente * 1) AS noCliente
+					FROM cat_contratos CCON
+					INNER JOIN cat_cotizaciones CC ON CCON.Cotizacion_ID = CC.Cotizacion_ID
 					INNER JOIN cat_solicitudes CS ON CC.Solicitud_ID = CS.Solicitud_ID
-					INNER JOIN seg_usuarios SU ON SU.Usuario_ID = CC.Usuario_ID;
+					INNER JOIN cat_lineas L ON L.Linea_ID = CC.Linea_ID
+					INNER JOIN seg_usuarios SU ON SU.Usuario_ID = CC.Usuario_ID
+					INNER JOIN cat_productos P ON P.Producto_ID = CC.Producto_ID;
 			`);
+
+			for (let item of rows) {
+				item.info = JSON.parse(item.info);
+			}
 
 			return rows;
 		},
@@ -59,15 +69,24 @@ module.exports = {
 	},
 	steps: [async function (db, row, index) {
 		try {
-			const concatenatedName = row['acr_nombre'].trim() + ' ' + row['acr_paterno'].trim() + ' ' + row['acr_materno'].trim();
+			let noClientAux = (parseInt(row['acr_identificador']) - 3).toString();
 
-			let request = db.data.requests.find(x => x.cliente == concatenatedName);
+			if (!clientCounts[noClientAux]) {
+				clientCounts[noClientAux] = 0;
+			}
+
+			let countAux = clientCounts[noClientAux];
+
+			const concatenatedName = (row['acr_nombre'].trim() + ' ' + row['acr_paterno'].trim() + ' ' + row['acr_materno'].trim()).toUpperCase();
+			const line = db.data.lines.find(x => x.source = (row['exp_tipo']).trim());
+			let request = db.data.requests.filter((x) => x.noCliente == (parseInt(row['acr_identificador']) - 3));
+			request = request.find((x, i) => i == countAux);
 
 			if (!request) {
-				db.log('ERROR', `No existe la solicitud para el cliente | Cliente: ${concatenatedName}`);
+				db.log('ERROR', `No existe la solicitud | Fila: ${index + 1}, exp_identificador: ${row['exp_identificador']} acr_identificador: ${row['acr_identificador']}`);
 				const clientName = concatenatedName;
 
-				let client = db.data.clients.find(x => x.name === clientName);
+				let client = db.data.clients.find(x => x.noCliente === (parseInt(row['acr_identificador']) - 3));
 
 				if (client) {
 					const info = {
@@ -76,7 +95,7 @@ module.exports = {
 						clientEmail: client.email,
 					};
 
-					const line = db.data.lines.find(x => x.source === row['exp_tipo']);
+					const line = db.data.lines.find(x => x.source === (row['exp_tipo']).trim());
 
 					const insertRequest = await db.insert({
 						table: 'cat_solicitudes',
@@ -106,7 +125,7 @@ module.exports = {
 				}
 			}
 
-			const auxObj = Object.assign({}, JSON.parse(request.info));
+			const auxObj = Object.assign({}, request.info);
 
 			for (let key in row) {
 				auxObj[key] = row[key] || '';
@@ -115,6 +134,8 @@ module.exports = {
 			const jsonString = JSON.stringify(auxObj);
 
 			const update = await db.query(`UPDATE cat_solicitudes SET Informacion = ? WHERE Solicitud_ID = ?`, [jsonString, request.id]);
+
+			clientCounts[noClientAux] = clientCounts[noClientAux] + 1;
 
 			db.log('SUCCESS', `Solicitud actualizada | ID: ${request.id} Nombre: ${request.name} | ${auxObj.clientName}`);
 
